@@ -1,1 +1,7 @@
+python-telegram-bot
+yfinance
+pandas
+apscheduler
+python-dotenv
+pytz
 
