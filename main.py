@@ -20,6 +20,7 @@ BOT_TOKEN  = os.getenv("BOT_TOKEN")
 MY_CHAT_ID = os.getenv("MY_CHAT_ID")
 TOPIC_ID   = os.getenv("TOPIC_ID")
 
+
 async def send_auto_report(bot):
     try:
         kwargs = {
@@ -34,13 +35,15 @@ async def send_auto_report(bot):
     except Exception as e:
         logger.error(f"❌ Report failed: {e}", exc_info=True)
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Bot is running!")
+
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❓ Unknown command.")
 
-# ✅ Plain def — NOT async def
+
 def main():
     if not BOT_TOKEN:
         raise EnvironmentError("BOT_TOKEN is not set!")
@@ -56,7 +59,8 @@ def main():
     scheduler.add_job(
         send_auto_report,
         trigger="cron",
-        hour=9, minute=0,
+        hour=9,
+        minute=0,
         args=[application.bot],
         id="daily_report",
         replace_existing=True,
@@ -65,12 +69,11 @@ def main():
     scheduler.start()
     logger.info("🚀 E11 Sniper Bot Is Running... Waiting for commands.")
 
-    # ✅ run_polling() — correct v20+ method, manages its own event loop
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True,
     )
 
-# ✅ Plain call — NOT asyncio.run(main())
+
 if __name__ == "__main__":
     main()
