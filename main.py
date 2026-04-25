@@ -1,57 +1,54 @@
-import logging
-import os
 import asyncio
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncioScheduler
+import logging
+import os  # បន្ថែម os សម្រាប់ទាញយក Variables ពី Railway
+from telegram.ext import ApplicationBuilder, CommandHandler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# 1. ការកំណត់ Logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ទាញយក Token និង Chat ID ពី Variables របស់ Railway
+# --- ចំណុចមេត្រូវផ្ទៀងផ្ទាត់ ---
+# ទាញយក Token និង ID ពី Variables ដែលមេបានដាក់ក្នុង Railway
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-MY_CHAT_ID = os.getenv("MY_CHAT_ID")
+CHAT_ID = os.getenv("MY_CHAT_ID") 
 
-# 2. Function សម្រាប់បាញ់ Report អូតូ (មេអាចកែសម្រួលការវិភាគមាស XAUUSD នៅទីនេះ)
-async def send_auto_report(context: ContextTypes.DEFAULT_TYPE):
-    try:
-        message = "🚀 **E11 Sniper Daily Report**\n\nទីផ្សារមាស XAUUSD ថ្ងៃនេះ៖ [ការវិភាគតាម SMC/ICT របស់មេ]"
-        await context.bot.send_message(chat_id=MY_CHAT_ID, text=message, parse_mode='Markdown')
-        logger.info("Sent daily report successfully!")
-    except Exception as e:
-        logger.error(f"Error sending report: {e}")
+async def send_auto_report(bot):
+    if CHAT_ID:
+        try:
+            await bot.send_message(chat_id=CHAT_ID, text="📊 **E11 Sniper Daily Report**: ទីផ្សារមាសថ្ងៃនេះ...")
+        except Exception as e:
+            logger.error(f"Error sending report: {e}")
 
-# 3. Command /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ជម្រាបសួរមេ! E11 Sniper Bot កំពុងដំណើរការយ៉ាងរលូន។")
+async def start(update, context):
+    await update.message.reply_text("ជម្រាបសួរមេ! E11 Sniper Bot រួចរាល់ហើយ។")
 
 def main():
-    # ឆែកមើលថាមាន TOKEN ឬអត់ ដើម្បីការពារការ Crash
     if not TOKEN:
-        logger.error("Error: TELEGRAM_TOKEN variable is missing!")
+        logger.error("❌ រកមិនឃើញ TELEGRAM_TOKEN ក្នុង Variables ទេ។ សូមឆែកក្នុង Railway!")
         return
 
-    # បង្កើត Application
+    # Build the application
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # បន្ថែម Command
+    # Register handlers
     application.add_handler(CommandHandler("start", start))
 
-    # 4. កំណត់ Scheduler
-    scheduler = AsyncioScheduler()
-    # បាញ់រាល់ថ្ងៃ ម៉ោង ៨ ព្រឹក (មេអាចកែម៉ោងបានតាមចិត្ត)
-    scheduler.add_job(send_auto_report, 'cron', hour=8, minute=0, args=[application])
+    # Set up APScheduler
+    scheduler = AsyncIOScheduler()
+    # កំណត់ម៉ោងបាញ់ Report (hour=9, minute=0 គឺម៉ោង ៩ ព្រឹក)
+    scheduler.add_job(
+        send_auto_report,
+        trigger="cron",
+        hour=9,
+        minute=0,
+        args=[application.bot]
+    )
     scheduler.start()
+    
+    logger.info("🚀 Bot is running... Waiting for commands.")
 
-    logger.info("🚀 Bot is starting with run_polling()...")
-
-    # 5. ប្រើ run_polling() បែបនេះទើបត្រឹមត្រូវ (កុំប្រើ start_polling() ដាច់ខាត)
+    # ✅ វិធីសាស្ត្រត្រឹមត្រូវសម្រាប់ v20+
     application.run_polling()
 
 if __name__ == "__main__":
-    main()
-    
+    main() 
