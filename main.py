@@ -26,17 +26,13 @@ MY_CHAT_ID = os.getenv("MY_CHAT_ID")
 TOPIC_ID   = os.getenv("TOPIC_ID")
 
 
-# ── Market Data ────────────────────────────────────────────────────────────────
-
 def get_xauusd_data():
     ticker = yf.Ticker("GC=F")
     df = ticker.history(period="10d", interval="1h")
     if df.empty:
-        raise ValueError("No market data available from yfinance")
+        raise ValueError("No market data returned from yfinance")
     return df
 
-
-# ── Indicators ─────────────────────────────────────────────────────────────────
 
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -55,26 +51,19 @@ def calculate_macd(series):
     return macd, signal, histogram
 
 
-# ── Support & Resistance ───────────────────────────────────────────────────────
-
 def get_support_resistance(df):
     resistance = round(df["High"].rolling(10).max().iloc[-1], 2)
     support    = round(df["Low"].rolling(10).min().iloc[-1], 2)
     return support, resistance
 
 
-# ── ICT Levels ─────────────────────────────────────────────────────────────────
-
 def get_ict_levels(df):
     daily = yf.Ticker("GC=F").history(period="10d", interval="1d")
-
     pdh = round(daily["High"].iloc[-2], 2)
     pdl = round(daily["Low"].iloc[-2], 2)
     pdc = round(daily["Close"].iloc[-2], 2)
-
     eq_high = round(df["High"].tail(20).max(), 2)
     eq_low  = round(df["Low"].tail(20).min(), 2)
-
     fvg_bull, fvg_bear = None, None
     for i in range(2, len(df)):
         c0_high = df["High"].iloc[i - 2]
@@ -85,11 +74,8 @@ def get_ict_levels(df):
             fvg_bull = (round(c0_high, 2), round(c2_low, 2))
         if c2_high < c0_low:
             fvg_bear = (round(c2_high, 2), round(c0_low, 2))
-
     return pdh, pdl, pdc, eq_high, eq_low, fvg_bull, fvg_bear
 
-
-# ── Liquidity ──────────────────────────────────────────────────────────────────
 
 def get_liquidity(df, price):
     daily       = yf.Ticker("GC=F").history(period="10d", interval="1d")
@@ -107,8 +93,6 @@ def get_liquidity(df, price):
     return ext_buy, ext_sell, equilibrium, int_status, spread
 
 
-# ── Trend ──────────────────────────────────────────────────────────────────────
-
 def get_trend(df):
     ema20 = df["Close"].ewm(span=20).mean().iloc[-1]
     ema50 = df["Close"].ewm(span=50).mean().iloc[-1]
@@ -120,8 +104,6 @@ def get_trend(df):
     else:
         return "⚖️ RANGING", "Mixed EMA signals"
 
-
-# ── Signal ─────────────────────────────────────────────────────────────────────
 
 def get_signal(rsi, macd_val, signal_val, trend):
     if "BULLISH" in trend and rsi < 70 and macd_val > signal_val:
@@ -135,8 +117,6 @@ def get_signal(rsi, macd_val, signal_val, trend):
     else:
         return "⏳ WAIT", "No clear signal — stay patient"
 
-
-# ── News ───────────────────────────────────────────────────────────────────────
 
 def get_economic_news():
     try:
@@ -155,8 +135,6 @@ def get_economic_news():
     return ["News unavailable"]
 
 
-# ── Report Builder ─────────────────────────────────────────────────────────────
-
 async def build_report(bot, chat_id, topic_id=None):
     try:
         df    = get_xauusd_data()
@@ -164,7 +142,6 @@ async def build_report(bot, chat_id, topic_id=None):
         high  = round(df["High"].iloc[-1], 2)
         low   = round(df["Low"].iloc[-1], 2)
 
-        # Use last candle timestamp (shows Friday time on weekends)
         last_candle_time = df.index[-1].strftime("%Y-%m-%d %H:%M UTC")
 
         rsi_series         = calculate_rsi(df["Close"])
@@ -174,28 +151,30 @@ async def build_report(bot, chat_id, topic_id=None):
         signal_val         = round(signal.iloc[-1], 2)
         hist_val           = round(hist.iloc[-1], 2)
 
-        support, resistance             = get_support_resistance(df)
-        trend_label, trend_reason       = get_trend(df)
-        signal_label, sig_reason        = get_signal(rsi, macd_val, signal_val, trend_label)
-        pdh, pdl, pdc, eq_high, eq_low, fvg_bull, fvg_bear = get_ict_levels(df)
-        ext_buy, ext_sell, equilibrium, int_status, spread  = get_liquidity(df, price)
+        support, resistance                                  = get_support_resistance(df)
+        trend_label, trend_reason                            = get_trend(df)
+        signal_label, sig_reason                             = get_signal(rsi, macd_val, signal_val, trend_label)
+        pdh, pdl, pdc, eq_high, eq_low, fvg_bull, fvg_bear  = get_ict_levels(df)
+        ext_buy, ext_sell, equilibrium, int_status, spread   = get_liquidity(df, price)
 
         news       = get_economic_news()
         news_lines = "\n".join([f"  • {n}" for n in news])
 
         fvg_bull_str = f"${fvg_bull[0]} – ${fvg_bull[1]}" if fvg_bull else "None detected"
         fvg_bear_str = f"${fvg_bear[0]} – ${fvg_bear[1]}" if fvg_bear else "None detected"
+        rsi_label    = "🔥 Overbought" if rsi > 70 else "🧊 Oversold" if rsi < 30 else "✅ Neutral"
 
-        rsi_label = "🔥 Overbought" if rsi > 70 else "🧊 Oversold" if rsi < 30 else "✅ Neutral"
+        # Weekend banner
+        today = datetime.datetime.utcnow().weekday()
+        weekend_note = "\n⚠️ _Weekend — showing last Friday close_\n" if today >= 5 else ""
 
         report = f"""
 🏦 *E11 INTELLIGENCE — XAUUSD*
-🕐 Data as of: {last_candle_time}
-
-💰 *LIVE PRICE*
-  Price : *${price}*
-  High  : ${high}
-  Low   : ${low}
+🕐 {last_candle_time}{weekend_note}
+💰 *PRICE*
+  Current : *${price}*
+  High    : ${high}
+  Low     : ${low}
 
 📊 *TREND*
   {trend_label}
@@ -206,20 +185,20 @@ async def build_report(bot, chat_id, topic_id=None):
   🔴 Resistance : ${resistance}
 
 🧠 *ICT KEY LEVELS*
-  PDH : ${pdh}
-  PDL : ${pdl}
-  PDC : ${pdc}
+  PDH         : ${pdh}
+  PDL         : ${pdl}
+  PDC         : ${pdc}
   Equal Highs : ${eq_high}
   Equal Lows  : ${eq_low}
-  Bull FVG : {fvg_bull_str}
-  Bear FVG : {fvg_bear_str}
+  Bull FVG    : {fvg_bull_str}
+  Bear FVG    : {fvg_bear_str}
 
 💧 *LIQUIDITY*
-  🔵 External Buy-Side  : {ext_buy}
-  🔴 External Sell-Side : {ext_sell}
-  ⚖️ Equilibrium        : ${equilibrium}
-  📍 Internal           : {int_status}
-  📏 Day Range          : ${spread}
+  🔵 Buy-Side  : {ext_buy}
+  🔴 Sell-Side : {ext_sell}
+  ⚖️ EQ Level  : ${equilibrium}
+  📍 Internal  : {int_status}
+  📏 Day Range : ${spread}
 
 📈 *INDICATORS*
   RSI (14)  : {rsi} {rsi_label}
@@ -231,14 +210,18 @@ async def build_report(bot, chat_id, topic_id=None):
   {signal_label}
   _{sig_reason}_
 
-📰 *MARKET NEWS*
+📰 *NEWS*
 {news_lines}
 
 ━━━━━━━━━━━━━━━━━━━
 _E11 Sniper Bot • Educational use only_
 """
 
-        kwargs = {"chat_id": chat_id, "text": report.strip(), "parse_mode": "Markdown"}
+        kwargs = {
+            "chat_id"   : chat_id,
+            "text"      : report.strip(),
+            "parse_mode": "Markdown",
+        }
         if topic_id:
             kwargs["message_thread_id"] = int(topic_id)
 
@@ -247,13 +230,13 @@ _E11 Sniper Bot • Educational use only_
 
     except Exception as e:
         logger.error(f"❌ Report error: {e}", exc_info=True)
-        try:
-            await bot.send_message(chat_id=chat_id, text=f"❌ Report error: {e}")
-        except Exception:
-            pass
+        # Always send the actual error so we can debug
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"❌ Report failed:\n\n`{str(e)}`",
+            parse_mode="Markdown",
+        )
 
-
-# ── Handlers ───────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -278,20 +261,19 @@ async def instant_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.datetime.utcnow().weekday()
     if today >= 5:
         await update.message.reply_text(
-            "📅 *Weekend Mode*\n"
-            "_(Markets closed — showing last available Friday data)_",
+            "📅 *Weekend Mode — Last Friday Data*\n"
+            "_(Markets closed — fetching last available data...)_",
             parse_mode="Markdown",
         )
     else:
         await update.message.reply_text("⏳ Analyzing XAUUSD market...")
+    # Always try to build report regardless of weekend
     await build_report(context.bot, update.effective_chat.id, TOPIC_ID)
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❓ Unknown command. Try /help.")
 
-
-# ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
     if not BOT_TOKEN:
