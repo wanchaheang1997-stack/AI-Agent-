@@ -11,7 +11,7 @@ async def get_report():
     try:
         g = yf.download('GC=F', period='1d', interval='1m', progress=False)
         p = float(g['Close'].iloc[-1])
-        return f"🏛 **E11 INTELLIGENCE**\n💰 XAUUSD: `${p:.2f}`\n✅ Sniper Bot រស់ហើយមេ!"
+        return f"🏛 **E11 INTELLIGENCE**\n💰 XAUUSD: `${p:.2f}`\n✅ Sniper Active & Stable!"
     except: return "⚠️ Error data!"
 
 async def send_auto(context):
@@ -26,19 +26,20 @@ async def manual(u, c):
 
 def main():
     if not TOKEN: return
-    # បង្កើត Application (ប្រើរបៀបសាមញ្ញបំផុតដើម្បីជៀសវាង Loop Error)
+    # បង្កើត Application (ប្រើ Standard Polling ដើម្បីកុំឱ្យ Crashed)
     app = ApplicationBuilder().token(TOKEN).build()
     
+    # បន្ថែម Command
     app.add_handler(CommandHandler('report', manual))
     
     if CHAT_ID:
-        # បាញ់អូតូ រៀងរាល់ព្រឹកម៉ោង ៨ (ម៉ោងកម្ពុជា)
+        # បាញ់អូតូ ម៉ោង ៨ ព្រឹក (ម៉ោងកម្ពុជា)
         app.job_queue.run_daily(send_auto, time(8, 0, tzinfo=pytz.timezone('Asia/Phnom_Penh')), days=(0,1,2,3,4))
         # បាញ់តេស្ត ១ គ្រាប់ភ្លាមៗ ៥ វិនាទីក្រោយបើក Bot
         app.job_queue.run_once(send_auto, 5)
 
     print("🚀 Sniper Bot is Online & Polling...")
-    # នេះជាថ្នាំព្យាបាល Error line 104/649៖ ប្រើ run_polling ផ្ទាល់
+    # វិធីរត់ចុងក្រោយដើម្បីបាត់ Error start_polling
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
