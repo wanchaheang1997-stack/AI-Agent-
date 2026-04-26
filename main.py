@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import numpy as np
 import ccxt
+import time
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -212,8 +213,8 @@ def detect_fvg(df):
 def detect_order_block(df):
     ob_bull, ob_bear = None, None
     for i in range(1, len(df) - 1):
-        curr   = df.iloc[i]
-        next_c = df.iloc[i + 1]
+        curr      = df.iloc[i]
+        next_c    = df.iloc[i + 1]
         body_curr = abs(curr["Close"] - curr["Open"])
         body_next = abs(next_c["Close"] - next_c["Open"])
         if curr["Close"] < curr["Open"] and next_c["Close"] > next_c["Open"] and body_next > body_curr * 1.5:
@@ -224,7 +225,7 @@ def detect_order_block(df):
 
 
 def detect_sfp(df_5m, session_levels):
-    last     = df_5m.iloc[-1]
+    last      = df_5m.iloc[-1]
     sfp_type  = None
     sfp_level = None
     for session, levels in session_levels.items():
@@ -261,7 +262,7 @@ def get_volume_profile(df):
     total_vol = vol_profile.sum()
     target    = total_vol * 0.70
     upper, lower = poc_idx, poc_idx
-    covered   = vol_profile[poc_idx]
+    covered      = vol_profile[poc_idx]
     while covered < target and (upper < len(vol_profile) - 1 or lower > 0):
         up_vol   = vol_profile[upper + 1] if upper < len(vol_profile) - 1 else 0
         down_vol = vol_profile[lower - 1] if lower > 0 else 0
@@ -311,7 +312,7 @@ def get_economic_news():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SMC SIGNAL CHECKER — every 1 minute
+# SMC SIGNAL CHECKER
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def smc_signal_check(bot):
@@ -503,7 +504,7 @@ async def build_report(bot, chat_id, topic_id=None):
             if lvl["high"]:
                 session_text += f"  {s}: H ${lvl['high']} | L ${lvl['low']}\n"
         if not session_text:
-            session_text = "  No session data yet today\n"
+            session_text = "  No session data yet\n"
 
         news       = get_economic_news()
         news_lines = "\n".join([f"  • {n}" for n in news])
@@ -587,7 +588,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 *Commands:*\n"
@@ -597,5 +597,4 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-
-async def instant_report(update: Update, 
+async def instant_report(update: Update, con
