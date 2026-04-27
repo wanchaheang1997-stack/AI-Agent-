@@ -1,6 +1,5 @@
 python-telegram-bot
 pandas
-numpy
-ccxt
-requests
+yfinance
 apscheduler
+numpy
