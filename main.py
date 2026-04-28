@@ -12,14 +12,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MY_CHAT_ID = os.getenv("MY_CHAT_ID")
 TOPIC_ID = os.getenv("TOPIC_ID")
 
-# --- WEB SERVER ---
+# --- WEB SERVER FOR RENDER ---
 app_web = Flask('')
 @app_web.route('/')
-def home(): return "E11 Intelligence System Active!"
+def home(): return "E11 Intelligence Full System Active!"
 def run(): app_web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
 
-# --- ADVANCED ANALYSIS LOGIC ---
-def get_e11_intelligence():
+def get_e11_intelligence_full():
     try:
         # ទាញទិន្នន័យ Gold, DXY, BTC
         gold = yf.Ticker("GC=F")
@@ -33,23 +32,28 @@ def get_e11_intelligence():
         high_24h = round(df_h1['High'].iloc[-24:].max(), 2)
         low_24h = round(df_h1['Low'].iloc[-24:].min(), 2)
         
-        # Volume Profile (Simulated via Price Action)
-        vah = round(high_24h * 1.005, 2)
-        val = round(low_24h * 0.995, 2)
-        poc = round((vah + val) / 2, 2)
+        # --- គណនា Session High/Low (តេស្តតាមម៉ោង KH) ---
+        # ឧបមាថា New York ចាប់ពីម៉ោង 7PM - 2AM KH
+        ny_session = df_h1.between_time('19:00', '02:00')
+        ny_h = round(ny_session['High'].max(), 2) if not ny_session.empty else high_24h
+        ny_l = round(ny_session['Low'].min(), 2) if not ny_session.empty else low_24h
         
-        # Key Levels
-        pdh = round(df_d['High'].iloc[-2], 2)
-        pdl = round(df_d['Low'].iloc[-2], 2)
-        pwh = round(df_d['High'].max(), 2)
-        pwl = round(df_d['Low'].min(), 2)
+        # --- Volume Profile & Key Levels ---
+        vah = round(high_24h * 1.01, 1) # បន្ថែម logic ឱ្យវាខុសគ្នាខ្លះ
+        val = round(low_24h * 0.99, 1)
+        poc = round((high_24h + low_24h) / 2, 2)
+        
+        pdh, pdl = round(df_d['High'].iloc[-2], 2), round(df_d['Low'].iloc[-2], 2)
+        pwh, pwl = round(df_d['High'].max(), 2), round(df_d['Low'].min(), 2)
+        
+        # --- Liquidity Pool (Order Block Simulation) ---
+        bullish_ob = round(low_24h + 3, 1)
+        bearish_ob = round(high_24h - 3, 1)
         
         dxy_p = round(dxy.history(period="1d")['Close'].iloc[-1], 2)
         btc_p = "{:,}".format(round(btc.history(period="1d")['Close'].iloc[-1], 2))
         
         now_kh = datetime.datetime.now(pytz.timezone('Asia/Phnom_Penh')).strftime('%Y-%m-%d %H:%M')
-        
-        # Logic សម្រាប់ Signal
         action = "🚀 BUY (In Discount Zone)" if last_p < poc else "⚡️ SELL (In Premium Zone)"
 
         msg = (
@@ -69,7 +73,11 @@ def get_e11_intelligence():
             f"🔑 *Key Level:*\n"
             f"  💸 PWH: `${pwh}` | PWL: `${pwl}`\n"
             f"  💸 PDH: `${pdh}` | PDL: `${pdl}`\n"
+            f"  🇺🇸 New York H: `${ny_h}` | 🇺🇸 New York L: `${ny_l}`\n"
             f"  ⚠️ Support: `${low_24h}` | Resistance: `${high_24h}`\n\n"
+            f"💰 *Liquidity Pool (1H):*\n"
+            f"  🐂 Bullish OB : `${bullish_ob}`\n"
+            f"  🐻 Bearish OB : `${bearish_ob}`\n\n"
             f"🎯 *SIGNAL*\n"
             f"  Action : {action}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
@@ -79,21 +87,20 @@ def get_e11_intelligence():
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
-# --- BOT FUNCTIONS ---
+# --- BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 E11 System Ready! វាយ /report ដើម្បីមើលវិភាគ។")
+    await update.message.reply_text("👋 E11 Intelligence System Ready!")
 
 async def manual_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(get_e11_intelligence(), parse_mode="Markdown")
+    await update.message.reply_text(get_e11_intelligence_full(), parse_mode="Markdown")
 
 async def auto_report(context: ContextTypes.DEFAULT_TYPE):
-    msg = get_e11_intelligence()
+    msg = get_e11_intelligence_full()
     await context.bot.send_message(chat_id=MY_CHAT_ID, text=msg, message_thread_id=TOPIC_ID, parse_mode="Markdown")
 
 async def main():
     Thread(target=run).start()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("report", manual_report))
 
@@ -110,4 +117,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
+                                    
