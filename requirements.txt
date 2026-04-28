@@ -1,9 +1,6 @@
 python-telegram-bot
-yfinance
+polygon-api-client
 pandas
-numpy
 pytz
 apscheduler
-beautifulsoup4
-requests
 flask
