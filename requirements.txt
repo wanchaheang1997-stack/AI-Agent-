@@ -1,6 +1,7 @@
 python-telegram-bot
 polygon-api-client
 pandas
+numpy
 pytz
 apscheduler
 flask
