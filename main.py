@@ -1,86 +1,67 @@
+import sys
 import os
 import asyncio
-import logging
-import datetime
-import pytz
-import pandas as pd
 from flask import Flask
 from threading import Thread
-from polygon import RESTClient
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# --- Flask Server សម្រាប់ Render ---
-server = Flask("")
-@server.route('/')
-def home(): return "E11 Sniper is Running!"
-def run_server(): server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# --- CONFIG ---
-KH_TZ = pytz.timezone("Asia/Phnom_Penh")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-POLYGON_KEY = os.environ.get("POLYGON_API_KEY")
-ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
-GROUP_ID = os.environ.get("GROUP_ID")
-REPORT_TOPIC = int(os.environ.get("REPORT_TOPIC_ID", 2))
+import config
+from utils.logger import logger
+from telegram.bot_handlers import start_command, bias_command, news_command, sentiment_command, cot_command, session_command
+from analysis.bias_generator import generate_full_market_report
 
-client = RESTClient(POLYGON_KEY)
-logging.basicConfig(level=logging.INFO)
+# --- Flask Server សម្រាប់ទប់ Render កុំឱ្យ Sleep ---
+flask_app = Flask("")
 
-# --- ENGINE: MARKET REPORT ---
-async def get_report():
+@flask_app.route('/')
+def home():
+    return "🎯 E11 Sniper High-Frequency Intelligence Server Status: ACTIVE"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port)
+
+# --- Automated Schedules ---
+async def scheduled_broadcast(bot: Bot):
     try:
-        now = datetime.datetime.now()
-        start = (now - datetime.timedelta(days=5)).strftime("%Y-%m-%d")
-        aggs = client.get_aggs("C:XAUUSD", 1, "hour", start, now.strftime("%Y-%m-%d"))
-        df = pd.DataFrame(aggs)
-        lp = round(df["close"].iloc[-1], 2)
-        ema = round(df["close"].ewm(span=200, adjust=False).mean().iloc[-1], 2)
-        bias = "BULLISH 🚀" if lp > ema else "BEARISH 📉"
-        
-        return (
-            f"🏛 *E11 MARKET INTELLIGENCE*\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 *XAUUSD:* `${lp}`\n"
-            f"📊 *BIAS:* {bias}\n"
-            f"🌊 *EMA 200:* `${ema}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🕐 {datetime.datetime.now(KH_TZ).strftime('%H:%M')} KH\n"
-        )
-    except Exception as e: return f"❌ Error: {e}"
+        logger.info("Triggering scheduled market profile injection...")
+        report = generate_full_market_report()
+        await bot.send_message(chat_id=config.GROUP_ID, text=report, parse_mode="Markdown")
+        logger.info("Successfully transmitted market profile to channel.")
+    except Exception as e:
+        logger.error(f"Cron broadcast transmission failed: {e}")
 
-# --- TELEGRAM HANDLERS ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎯 E11 Sniper Bot V41 (Render) Active!")
-
-async def manual_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    text = await get_report()
-    await context.bot.send_message(chat_id=GROUP_ID, message_thread_id=REPORT_TOPIC, text=text, parse_mode="Markdown")
-
-async def auto_job(bot):
-    text = await get_report()
-    await bot.send_message(chat_id=GROUP_ID, message_thread_id=REPORT_TOPIC, text=text, parse_mode="Markdown")
-
-# --- MAIN ---
-async def main():
-    Thread(target=run_server).start() # រត់ Flask
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("report", manual_report))
-
-    scheduler = AsyncIOScheduler(timezone=KH_TZ)
+async def run_engine():
+    app = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    
+    # Mapping Telegram commands
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("bias", bias_command))
+    app.add_handler(CommandHandler("analysis", bias_command))
+    app.add_handler(CommandHandler("gold", bias_command))
+    app.add_handler(CommandHandler("news", news_command))
+    app.add_handler(CommandHandler("sentiment", sentiment_command))
+    app.add_handler(CommandHandler("cot", cot_command))
+    app.add_handler(CommandHandler("session", session_command))
+    app.add_handler(CommandHandler("killzone", session_command))
+    
+    # Automation Chrono Timers
+    scheduler = AsyncIOScheduler(timezone=config.KH_TZ)
     for hr in [8, 14, 19, 21]:
-        scheduler.add_job(auto_job, 'cron', hour=hr, minute=0, args=[app.bot])
+        scheduler.add_job(scheduled_broadcast, 'cron', hour=hr, minute=0, args=[app.bot])
     scheduler.start()
-
+    
     async with app:
         await app.initialize()
         await app.start()
         await app.updater.start_polling()
         await asyncio.Event().wait()
 
-if __name__ == '__main__':
-    asyncio.run(main())
-  
+if __name__ == "__main__":
+    Thread(target=run_flask, daemon=True).start()
+    asyncio.run(run_engine())
+    
